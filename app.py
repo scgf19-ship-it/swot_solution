@@ -53,6 +53,7 @@ st.caption(
 
 def convert_html_to_pdf(html_string):
     result = io.BytesIO()
+    # xhtml2pdf utf-8 인코딩 지정
     pisa_status = pisa.CreatePDF(html_string, dest=result, encoding="utf-8")
     if pisa_status.err:
         return None
@@ -161,7 +162,6 @@ if df_failures is not None:
                 try:
                     client = genai.Client(api_key=api_key.strip())
                     
-                    # 💡 구글에서 안내해 준 정확한 모델명(gemini-3.6-flash)으로 직접 연결
                     response = client.models.generate_content(
                         model="gemini-3.6-flash",
                         contents=prompt,
@@ -177,26 +177,52 @@ if df_failures is not None:
                     )
                     st.write(report_text)
 
+                    # 💡 [한글 폰트 지원 HTML 스타일 수정]
                     html_content = f"""
+                    <!DOCTYPE html>
                     <html>
                     <head>
-                        <meta charset="utf-8">
+                        <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
                         <style>
-                            body {{ font-family: Helvetica, Arial, sans-serif; padding: 20px; line-height: 1.6; color: #333; }}
-                            h1 {{ color: #1E3A8A; border-bottom: 2px solid #1E3A8A; padding-bottom: 8px; font-size: 18px; }}
-                            .info-box {{ background-color: #F3F4F6; padding: 12px; border-radius: 5px; margin-bottom: 15px; font-size: 11px; }}
-                            .content {{ font-size: 11px; white-space: pre-wrap; }}
+                            @page {{
+                                size: a4 portrait;
+                                margin: 2cm;
+                            }}
+                            body {{
+                                font-family: "NanumGothic", "Malgun Gothic", sans-serif;
+                                line-height: 1.6;
+                                color: #333333;
+                            }}
+                            h1 {{
+                                color: #1E3A8A;
+                                font-size: 18pt;
+                                border-bottom: 2px solid #1E3A8A;
+                                padding-bottom: 5px;
+                                margin-bottom: 15px;
+                            }}
+                            .info-box {{
+                                background-color: #F3F4F6;
+                                border: 1px solid #E5E7EB;
+                                padding: 12px;
+                                font-size: 10pt;
+                                margin-bottom: 20px;
+                            }}
+                            .content {{
+                                font-size: 10.5pt;
+                                white-space: pre-wrap;
+                                word-wrap: break-word;
+                            }}
                         </style>
                     </head>
                     <body>
                         <h1>소상공인 경영진단 및 맞춤 컨설팅 매칭 리포트</h1>
                         <div class="info-box">
-                            <strong>상담 고객 프로필:</strong> {selected_district} | {clean_industry} | {selected_age_display} | {selected_gender}<br>
-                            <strong>분석 기반:</strong> 소상공인 폐업실태 조사 데이터베이스 기반 자동 추출<br>
+                            <strong>상담 고객 프로필:</strong> {selected_district} | {clean_industry} | {selected_age_display} | {selected_gender}<br/>
+                            <strong>분석 기반:</strong> 소상공인 폐업실태 조사 데이터베이스({data_count_str}) 기반 자동 추출<br/>
                             <strong>발급 안내:</strong> 본 리포트는 개인정보를 저장하지 않는 일회성 맞춤 진단서입니다.
                         </div>
                         <div class="content">
-                            {report_text}
+{report_text}
                         </div>
                     </body>
                     </html>
