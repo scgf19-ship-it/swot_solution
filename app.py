@@ -5,7 +5,7 @@ from google import genai
 from xhtml2pdf import pisa
 
 # ==========================================
-# 1. 엑셀 파일 로드 및 데이터 전처리 (제목 설정을 위해 상단 배치)
+# 1. 엑셀 파일 로드 및 데이터 전처리
 # ==========================================
 @st.cache_data
 def load_excel_data():
@@ -50,7 +50,6 @@ st.set_page_config(
     layout="wide",
 )
 
-# 메인 큰 제목 및 요청하신 부제목 적용
 st.title("📊 폐업자 실패요인 데이터 기반 맞춤형 경영진단 리포트")
 st.caption(
     f"축적된 폐업 소상공인 실패요인 데이터({data_count_str})를 바탕으로 객관적인 경영 위험 분석과 맞춤형 컨설팅을 제안드립니다."
@@ -66,7 +65,7 @@ def convert_html_to_pdf(html_string):
 
 
 # ==========================================
-# 3. 사용자 입력 폼 (요청하신 도움말 반영)
+# 3. 사용자 입력 폼
 # ==========================================
 if df_failures is not None:
     st.sidebar.header("📋 상담업체 프로필 선택")
@@ -75,7 +74,6 @@ if df_failures is not None:
         "자치구", sorted(df_failures["자치구"].dropna().unique())
     )
     
-    # 💡 [요청 문구 반영] 업종 입력 가이드 도움말
     user_industry_input = st.sidebar.text_input(
         "업종 검색 및 입력",
         value="한식 음식점",
@@ -102,7 +100,7 @@ if df_failures is not None:
     generate_btn = st.sidebar.button("🚀 경영진단 리포트 생성하기", use_container_width=True)
 
     # ==========================================
-    # 4. 데이터 필터링 & Gemini API 호출
+    # 4. 데이터 필터링 & Gemini API 호출 (최신 모델 반영)
     # ==========================================
     if generate_btn:
         if not api_key:
@@ -173,8 +171,10 @@ if df_failures is not None:
             with st.spinner(f"'{clean_industry}' 관련 빅데이터를 분석하여 맞춤 진단서를 생성 중입니다..."):
                 try:
                     client = genai.Client(api_key=api_key)
+                    
+                    # 💡 [핵심 수정] 구글의 공식 안정화 모델명(gemini-1.5-flash)으로 지정
                     response = client.models.generate_content(
-                        model="gemini-2.5-flash",
+                        model="gemini-1.5-flash",
                         contents=prompt,
                     )
                     report_text = response.text
