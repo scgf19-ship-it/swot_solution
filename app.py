@@ -53,7 +53,6 @@ st.caption(
 
 def convert_html_to_pdf(html_string):
     result = io.BytesIO()
-    # xhtml2pdf utf-8 인코딩 지정
     pisa_status = pisa.CreatePDF(html_string, dest=result, encoding="utf-8")
     if pisa_status.err:
         return None
@@ -155,7 +154,7 @@ if df_failures is not None:
             1. **동종/유사 업종 폐업 원인 종합 진단**: 제공된 SWOT 실패 요인을 분석하여, '{clean_industry}' 관련 업종의 소상공인들이 주로 겪는 경영 위기 패턴(약점 및 위협요인)을 데이터에 기반하여 설명하세요.
             2. **예상 보완점 및 경영 인사이트**: 단순 자금(보증) 지원만으로는 해결되지 않는 핵심 경영 위험 요인을 지적하고, 우선적으로 개선해야 할 전략적 보완점을 제시하세요.
             3. **★ 맞춤형 컨설팅 지원사업 추천 (핵심)**: [자사 제공 컨설팅 지원사업 목록] 중에서 이 업체의 약점과 위협을 극복하는 데 가장 직결되는 컨설팅 분야/세부터겟 2~3개를 명확히 지목하고, 왜 이 컨설팅이 필요한지 논리적 사유를 함께 작성하세요.
-            4. **격식 및 톤앤매너**: 소상공인 사장님에게 전달되는 전문 기관의 공식 리포트 어조(~하오니, ~를 권장합니다)로 단정하게 작성하세요. 개인정보는 일절 언급하지 마세요.
+            4. **격식 및 톤앤매너**: 소상공인 사장님에게 전달되는 전문 기관의 공식 리포트 어조(~하오니, ~를 권장합니다)로 단정하게 작성하세요. 마크다운 기호(###, **)는 제거하고 깔끔한 텍스트 단락으로 출력하세요. 개인정보는 일절 언급하지 마세요.
             """
 
             with st.spinner(f"'{clean_industry}' 관련 빅데이터를 분석하여 맞춤 진단서를 생성 중입니다..."):
@@ -177,25 +176,37 @@ if df_failures is not None:
                     )
                     st.write(report_text)
 
-                    # 💡 [한글 폰트 지원 HTML 스타일 수정]
+                    # 💡 [핵심 해결] xhtml2pdf 지원 나눔고딕 TTF 웹폰트 연동 구문 추가
                     html_content = f"""
                     <!DOCTYPE html>
                     <html>
                     <head>
                         <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
                         <style>
+                            @font-face {{
+                                font-family: 'NanumGothic';
+                                src: url('https://cdnjs.cloudflare.com/ajax/libs/ink/3.1.10/fonts/Roboto/Roboto-Regular.ttf');
+                                font-weight: normal;
+                                font-style: normal;
+                            }}
+                            @font-face {{
+                                font-family: 'NanumGothic';
+                                src: url('https://cdn.jsdelivr.net/gh/googlefonts/nanum-gothic@main/fonts/ttf/NanumGothic-Regular.ttf');
+                                font-weight: normal;
+                                font-style: normal;
+                            }}
                             @page {{
                                 size: a4 portrait;
                                 margin: 2cm;
                             }}
                             body {{
-                                font-family: "NanumGothic", "Malgun Gothic", sans-serif;
+                                font-family: 'NanumGothic', sans-serif;
                                 line-height: 1.6;
                                 color: #333333;
                             }}
                             h1 {{
                                 color: #1E3A8A;
-                                font-size: 18pt;
+                                font-size: 16pt;
                                 border-bottom: 2px solid #1E3A8A;
                                 padding-bottom: 5px;
                                 margin-bottom: 15px;
@@ -203,12 +214,12 @@ if df_failures is not None:
                             .info-box {{
                                 background-color: #F3F4F6;
                                 border: 1px solid #E5E7EB;
-                                padding: 12px;
-                                font-size: 10pt;
-                                margin-bottom: 20px;
+                                padding: 10px;
+                                font-size: 9pt;
+                                margin-bottom: 15px;
                             }}
                             .content {{
-                                font-size: 10.5pt;
+                                font-size: 10pt;
                                 white-space: pre-wrap;
                                 word-wrap: break-word;
                             }}
