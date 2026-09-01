@@ -1,7 +1,7 @@
 import io
 import pandas as pd
 import streamlit as st
-from google import genai
+import google.generativeai as genai
 from xhtml2pdf import pisa
 
 # ==========================================
@@ -13,20 +13,16 @@ def load_excel_data():
         excel_file = "closure_data.xlsx"
         xls = pd.ExcelFile(excel_file, engine="openpyxl")
 
-        # 3개 시트 로드
         df_failures = pd.read_excel(xls, sheet_name="1. 폐업실패요인 데이터", engine="openpyxl")
         df_categories = pd.read_excel(xls, sheet_name="2. 카테고리", engine="openpyxl")
         df_consulting = pd.read_excel(xls, sheet_name="3. 컨설팅 분야", engine="openpyxl")
 
-        # 데이터 전처리: 나이대 표시 정제
         df_failures["나이대_표시"] = df_failures["나이대"].astype(str) + "대"
         df_failures["업종"] = df_failures["업종"].fillna("기타")
 
         return df_failures, df_categories, df_consulting
     except FileNotFoundError:
-        st.error(
-            "데이터 파일(closure_data.xlsx)을 찾을 수 없습니다. 깃허브에 올린 파일명을 확인해 주세요."
-        )
+        st.error("데이터 파일(closure_data.xlsx)을 찾을 수 없습니다. 깃허브 파일명을 확인해 주세요.")
         return None, None, None
     except Exception as e:
         st.error(f"엑셀 파일을 읽는 중 오류가 발생했습니다: {e}")
@@ -35,7 +31,6 @@ def load_excel_data():
 
 df_failures, df_categories, df_consulting = load_excel_data()
 
-# 데이터 개수 산출
 if df_failures is not None:
     data_count_str = f"{len(df_failures):,}건"
 else:
@@ -43,7 +38,7 @@ else:
 
 
 # ==========================================
-# 2. 페이지 기본 설정 및 제목 구성
+# 2. 페이지 기본 설정 및 제목
 # ==========================================
 st.set_page_config(
     page_title="폐업자 실패요인 데이터 기반 맞춤형 경영진단 리포트",
@@ -91,7 +86,6 @@ if df_failures is not None:
         "성별", sorted(df_failures["성별"].dropna().unique())
     )
 
-    # API Key 설정 (Secrets 우선)
     if "GEMINI_API_KEY" in st.secrets:
         api_key = st.secrets["GEMINI_API_KEY"]
     else:
@@ -100,7 +94,7 @@ if df_failures is not None:
     generate_btn = st.sidebar.button("🚀 경영진단 리포트 생성하기", use_container_width=True)
 
     # ==========================================
-    # 4. 데이터 필터링 & Gemini API 호출 (자동 모델 매칭)
+    # 4. 데이터 필터링 & API 호출 (다중 모델 자동 시도 로직)
     # ==========================================
     if generate_btn:
         if not api_key:
@@ -110,10 +104,8 @@ if df_failures is not None:
         else:
             clean_industry = user_industry_input.strip()
 
-            # 1단계 검색: 키워드 포함 데이터 필터링
             industry_mask = df_failures["업종"].str.contains(clean_industry, case=False, na=False)
             
-            # 2단계 정밀 검색: 자치구 + 유사 업종 + 연령대 + 성별 조건
             filtered_failures = df_failures[
                 industry_mask
                 & (df_failures["자치구"] == selected_district)
@@ -133,20 +125,17 @@ if df_failures is not None:
                 matched_industries = filtered_failures["업종"].unique()[:5]
                 matched_industries_str = ", ".join(matched_industries)
 
-            # SWOT 코드별 데이터 텍스트 구성
             swot_summary = ""
             sample_df = filtered_failures.head(20)
             for idx, row in sample_df.iterrows():
                 swot_summary += f"- [{row['코드']}] {row['항목']}: {row['내용']} (세부사례: {row['추가내용'] if pd.notna(row['추가내용']) else '없음'})\n"
 
-            # 3번 시트 컨설팅 지원사업 목록 텍스트화
             consulting_list_text = ""
             for idx, row in df_consulting.iterrows():
                 consulting_list_text += (
                     f"- [{row['항목']}] {row['분야']} > {row['세부 분야']}\n"
                 )
 
-            # 프롬프트 구성
             prompt = f"""
             당신은 소상공인 지원사업의 경영컨설팅 및 데이터 분석 전문가입니다.
             축적된 실제 소상공인 폐업 조사 데이터베이스({data_count_str})에서 추출된 아래 자료를 바탕으로, 상담 고객을 위한 객관적이고 논리적인 [경영 진단 및 맞춤 컨설팅 추천 리포트]를 작성하세요.
@@ -164,52 +153,42 @@ if df_failures is not None:
             [리포트 작성 지시사항]
             1. **동종/유사 업종 폐업 원인 종합 진단**: 제공된 SWOT 실패 요인을 분석하여, '{clean_industry}' 관련 업종의 소상공인들이 주로 겪는 경영 위기 패턴(약점 및 위협요인)을 데이터에 기반하여 설명하세요.
             2. **예상 보완점 및 경영 인사이트**: 단순 자금(보증) 지원만으로는 해결되지 않는 핵심 경영 위험 요인을 지적하고, 우선적으로 개선해야 할 전략적 보완점을 제시하세요.
-            3. **★ 맞춤형 컨설팅 지원사업 추천 (가장 중요)**: [자사 제공 컨설팅 지원사업 목록] 중에서 이 업체의 약점과 위협을 극복하는 데 가장 직결되는 컨설팅 분야/세부터겟 2~3개를 명확히 지목하고, 왜 이 컨설팅이 필요한지 논리적 사유를 함께 작성하세요.
+            3. **★ 맞춤형 컨설팅 지원사업 추천 (핵심)**: [자사 제공 컨설팅 지원사업 목록] 중에서 이 업체의 약점과 위협을 극복하는 데 가장 직결되는 컨설팅 분야/세부터겟 2~3개를 명확히 지목하고, 왜 이 컨설팅이 필요한지 논리적 사유를 함께 작성하세요.
             4. **격식 및 톤앤매너**: 소상공인 사장님에게 전달되는 전문 기관의 공식 리포트 어조(~하오니, ~를 권장합니다)로 단정하게 작성하세요. 개인정보는 일절 언급하지 마세요.
             """
 
             with st.spinner(f"'{clean_industry}' 관련 빅데이터를 분석하여 맞춤 진단서를 생성 중입니다..."):
                 try:
-                    client = genai.Client(api_key=api_key)
+                    genai.configure(api_key=api_key)
                     
-                    # 💡 [근본 해결] 구글 API의 지원 가능한 최신 모델들을 순차적으로 자동 시도
-                    candidate_models = [
-                        "gemini-2.5-flash",
-                        "gemini-1.5-flash",
-                        "gemini-2.0-flash",
-                        "gemini-1.5-pro"
-                    ]
-                    
+                    # 호환 가능한 모델 순차적 자동 생성 (404 방지)
+                    candidate_models = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"]
                     response = None
-                    last_error = None
-                    
-                    for model_name in candidate_models:
+                    last_err = None
+
+                    for m in candidate_models:
                         try:
-                            response = client.models.generate_content(
-                                model=model_name,
-                                contents=prompt,
-                            )
+                            model = genai.GenerativeModel(m)
+                            response = model.generate_content(prompt)
                             if response and response.text:
                                 break
-                        except Exception as err:
-                            last_error = err
+                        except Exception as e:
+                            last_err = e
                             continue
-                    
-                    if response is None:
-                        raise last_error
+
+                    if not response or not response.text:
+                        raise last_err
 
                     report_text = response.text
 
                     st.success("경영 진단 및 컨설팅 지원사업 매칭 리포트가 생성되었습니다!")
 
-                    # 화면 출력
                     st.markdown("---")
                     st.subheader(
                         f"📌 [{selected_district} / {clean_industry} / {selected_age_display} {selected_gender}] 맞춤 경영 진단서"
                     )
                     st.write(report_text)
 
-                    # 인쇄용 HTML
                     html_content = f"""
                     <html>
                     <head>
