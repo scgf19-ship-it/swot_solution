@@ -35,7 +35,7 @@ def load_excel_data():
 
 df_failures, df_categories, df_consulting = load_excel_data()
 
-# 데이터 개수 산출 (46,540건 등 실제 개수 포맷팅)
+# 데이터 개수 산출
 if df_failures is not None:
     data_count_str = f"{len(df_failures):,}건"
 else:
@@ -100,7 +100,7 @@ if df_failures is not None:
     generate_btn = st.sidebar.button("🚀 경영진단 리포트 생성하기", use_container_width=True)
 
     # ==========================================
-    # 4. 데이터 필터링 & Gemini API 호출 (최신 모델 반영)
+    # 4. 데이터 필터링 & Gemini API 호출 (gemini-2.0-flash 정식 반영)
     # ==========================================
     if generate_btn:
         if not api_key:
@@ -110,7 +110,7 @@ if df_failures is not None:
         else:
             clean_industry = user_industry_input.strip()
 
-            # 1단계 검색: 입력한 키워드가 포함된 유사 업종 데이터 필터링
+            # 1단계 검색: 키워드 포함 데이터 필터링
             industry_mask = df_failures["업종"].str.contains(clean_industry, case=False, na=False)
             
             # 2단계 정밀 검색: 자치구 + 유사 업종 + 연령대 + 성별 조건
@@ -172,9 +172,9 @@ if df_failures is not None:
                 try:
                     client = genai.Client(api_key=api_key)
                     
-                    # 💡 [핵심 수정] 구글의 공식 안정화 모델명(gemini-1.5-flash)으로 지정
+                    # 💡 [핵심 해결 point] 최신 정식 모델인 gemini-2.0-flash 지정
                     response = client.models.generate_content(
-                        model="gemini-1.5-flash",
+                        model="gemini-2.0-flash",
                         contents=prompt,
                     )
                     report_text = response.text
