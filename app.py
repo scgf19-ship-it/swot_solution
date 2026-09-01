@@ -1,7 +1,7 @@
 import io
 import pandas as pd
 import streamlit as st
-import google.generativeai as genai
+from google import genai
 from xhtml2pdf import pisa
 
 # ==========================================
@@ -94,11 +94,11 @@ if df_failures is not None:
     generate_btn = st.sidebar.button("🚀 경영진단 리포트 생성하기", use_container_width=True)
 
     # ==========================================
-    # 4. 데이터 필터링 & API 호출 (다중 모델 자동 시도 로직)
+    # 4. 데이터 필터링 & API 호출 (2026 최신 SDK 구문)
     # ==========================================
     if generate_btn:
         if not api_key:
-            st.warning("Gemini API Key가 설정되지 않았습니다. Secrets를 확인해 주세요.")
+            st.warning("Gemini API Key가 설정되지 않았습니다. Secrets 또는 사이드바를 확인해 주세요.")
         elif not user_industry_input.strip():
             st.warning("업종 키워드를 입력해 주세요.")
         else:
@@ -159,26 +159,15 @@ if df_failures is not None:
 
             with st.spinner(f"'{clean_industry}' 관련 빅데이터를 분석하여 맞춤 진단서를 생성 중입니다..."):
                 try:
-                    genai.configure(api_key=api_key)
+                    # 💡 2026 최신 공식 Client 초기화
+                    client = genai.Client(api_key=api_key.strip())
                     
-                    # 호환 가능한 모델 순차적 자동 생성 (404 방지)
-                    candidate_models = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"]
-                    response = None
-                    last_err = None
-
-                    for m in candidate_models:
-                        try:
-                            model = genai.GenerativeModel(m)
-                            response = model.generate_content(prompt)
-                            if response and response.text:
-                                break
-                        except Exception as e:
-                            last_err = e
-                            continue
-
-                    if not response or not response.text:
-                        raise last_err
-
+                    # 💡 구글 표준 공식 모델 지정
+                    response = client.models.generate_content(
+                        model="gemini-2.5-flash",
+                        contents=prompt,
+                    )
+                    
                     report_text = response.text
 
                     st.success("경영 진단 및 컨설팅 지원사업 매칭 리포트가 생성되었습니다!")
