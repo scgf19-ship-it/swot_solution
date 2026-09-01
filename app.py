@@ -19,18 +19,19 @@ st.caption(
 
 
 # ==========================================
-# 2. 엑셀 파일 로드 및 데이터 전처리
+# 2. 엑셀 파일 로드 및 데이터 전처리 (openpyxl 엔진 명시)
 # ==========================================
 @st.cache_data
 def load_excel_data():
     try:
         excel_file = "closure_data.xlsx"
-        xls = pd.ExcelFile(excel_file)
+        # engine="openpyxl"을 명시하여 엑셀 파싱 오류 방지
+        xls = pd.ExcelFile(excel_file, engine="openpyxl")
 
-        # 시트명/순서 기준 로드
-        df_failures = pd.read_excel(xls, sheet_name="1. 폐업실패요인 데이터")
-        df_categories = pd.read_excel(xls, sheet_name="2. 카테고리")
-        df_consulting = pd.read_excel(xls, sheet_name="3. 컨설팅 분야")
+        # 3개 시트 명시적으로 로드
+        df_failures = pd.read_excel(xls, sheet_name="1. 폐업실패요인 데이터", engine="openpyxl")
+        df_categories = pd.read_excel(xls, sheet_name="2. 카테고리", engine="openpyxl")
+        df_consulting = pd.read_excel(xls, sheet_name="3. 컨설팅 분야", engine="openpyxl")
 
         # 데이터 전처리: 나이대 표시 정제 (예: 60 -> 60대)
         df_failures["나이대_표시"] = df_failures["나이대"].astype(str) + "대"
@@ -116,7 +117,6 @@ if df_failures is not None:
             # SWOT 코드별 그룹화 및 텍스트 구성
             swot_summary = ""
             if not filtered_failures.empty:
-                # 데이터가 너무 많을 경우 상위 15건 샘플링하여 텍스트화
                 sample_df = filtered_failures.head(20)
                 for idx, row in sample_df.iterrows():
                     swot_summary += f"- [{row['코드']}] {row['항목']}: {row['내용']} (세부사례: {row['추가내용'] if pd.notna(row['추가내용']) else '없음'})\n"
@@ -128,7 +128,7 @@ if df_failures is not None:
                     f"- [{row['항목']}] {row['분야']} > {row['세부 분야']}\n"
                 )
 
-            # 프롬프트 구성 (전문가 페르소나 및 정교한 규칙 지정)
+            # 프롬프트 구성
             prompt = f"""
             당신은 소상공인 지원사업의 경영컨설팅 및 데이터 분석 전문가입니다.
             46,000여 건의 실제 소상공인 폐업 조사 데이터베이스에서 추출된 아래 자료를 바탕으로, 상담 고객을 위한 객관적이고 논리적인 [경영 진단 및 맞춤 컨설팅 추천 리포트]를 작성하세요.
@@ -168,7 +168,7 @@ if df_failures is not None:
                     )
                     st.write(report_text)
 
-                    # 인쇄용 HTML (A4 출력 스타일)
+                    # 인쇄용 HTML
                     html_content = f"""
                     <html>
                     <head>
