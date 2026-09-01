@@ -100,7 +100,7 @@ if df_failures is not None:
     generate_btn = st.sidebar.button("🚀 경영진단 리포트 생성하기", use_container_width=True)
 
     # ==========================================
-    # 4. 데이터 필터링 & Gemini API 호출 (gemini-2.0-flash 정식 반영)
+    # 4. 데이터 필터링 & Gemini API 호출 (자동 모델 매칭)
     # ==========================================
     if generate_btn:
         if not api_key:
@@ -172,11 +172,32 @@ if df_failures is not None:
                 try:
                     client = genai.Client(api_key=api_key)
                     
-                    # 💡 [핵심 해결 point] 최신 정식 모델인 gemini-2.0-flash 지정
-                    response = client.models.generate_content(
-                        model="gemini-2.0-flash",
-                        contents=prompt,
-                    )
+                    # 💡 [근본 해결] 구글 API의 지원 가능한 최신 모델들을 순차적으로 자동 시도
+                    candidate_models = [
+                        "gemini-2.5-flash",
+                        "gemini-1.5-flash",
+                        "gemini-2.0-flash",
+                        "gemini-1.5-pro"
+                    ]
+                    
+                    response = None
+                    last_error = None
+                    
+                    for model_name in candidate_models:
+                        try:
+                            response = client.models.generate_content(
+                                model=model_name,
+                                contents=prompt,
+                            )
+                            if response and response.text:
+                                break
+                        except Exception as err:
+                            last_error = err
+                            continue
+                    
+                    if response is None:
+                        raise last_error
+
                     report_text = response.text
 
                     st.success("경영 진단 및 컨설팅 지원사업 매칭 리포트가 생성되었습니다!")
