@@ -5,21 +5,7 @@ from google import genai
 from xhtml2pdf import pisa
 
 # ==========================================
-# 1. 페이지 기본 설정 (로그인 없는 단일 페이지)
-# ==========================================
-st.set_page_config(
-    page_title="소상공인 맞춤형 경영진단 및 컨설팅 매칭 리포트",
-    layout="wide",
-)
-
-st.title("📊 소상공인 경영진단 및 맞춤형 컨설팅 추천 리포트")
-st.caption(
-    "축적된 폐업 요인 실태조사 데이터(4.6만건)를 기반으로 AI가 경영 인사이트 및 맞춤 컨설팅 사업을 매칭합니다."
-)
-
-
-# ==========================================
-# 2. 엑셀 파일 로드 및 데이터 전처리
+# 1. 엑셀 파일 로드 및 데이터 전처리 (제목 설정을 위해 상단 배치)
 # ==========================================
 @st.cache_data
 def load_excel_data():
@@ -27,12 +13,12 @@ def load_excel_data():
         excel_file = "closure_data.xlsx"
         xls = pd.ExcelFile(excel_file, engine="openpyxl")
 
-        # 3개 시트 명시적으로 로드
+        # 3개 시트 로드
         df_failures = pd.read_excel(xls, sheet_name="1. 폐업실패요인 데이터", engine="openpyxl")
         df_categories = pd.read_excel(xls, sheet_name="2. 카테고리", engine="openpyxl")
         df_consulting = pd.read_excel(xls, sheet_name="3. 컨설팅 분야", engine="openpyxl")
 
-        # 데이터 전처리: 나이대 표시 정제 (예: 60 -> 60대)
+        # 데이터 전처리: 나이대 표시 정제
         df_failures["나이대_표시"] = df_failures["나이대"].astype(str) + "대"
         df_failures["업종"] = df_failures["업종"].fillna("기타")
 
@@ -49,6 +35,27 @@ def load_excel_data():
 
 df_failures, df_categories, df_consulting = load_excel_data()
 
+# 데이터 개수 산출 (46,540건 등 실제 개수 포맷팅)
+if df_failures is not None:
+    data_count_str = f"{len(df_failures):,}건"
+else:
+    data_count_str = "46,540건"
+
+
+# ==========================================
+# 2. 페이지 기본 설정 및 제목 구성
+# ==========================================
+st.set_page_config(
+    page_title="폐업자 실패요인 데이터 기반 맞춤형 경영진단 리포트",
+    layout="wide",
+)
+
+# 메인 큰 제목 및 요청하신 부제목 적용
+st.title("📊 폐업자 실패요인 데이터 기반 맞춤형 경영진단 리포트")
+st.caption(
+    f"축적된 폐업 소상공인 실패요인 데이터({data_count_str})를 바탕으로 객관적인 경영 위험 분석과 맞춤형 컨설팅을 제안드립니다."
+)
+
 
 def convert_html_to_pdf(html_string):
     result = io.BytesIO()
@@ -59,7 +66,7 @@ def convert_html_to_pdf(html_string):
 
 
 # ==========================================
-# 3. 사용자 입력 폼 (업종 직접 입력 기능 추가)
+# 3. 사용자 입력 폼 (요청하신 도움말 반영)
 # ==========================================
 if df_failures is not None:
     st.sidebar.header("📋 상담업체 프로필 선택")
@@ -68,11 +75,11 @@ if df_failures is not None:
         "자치구", sorted(df_failures["자치구"].dropna().unique())
     )
     
-    # 💡 [개선] 업종을 드롭다운이 아닌 직접 텍스트로 입력받음 (유사 업종 자동 매칭)
+    # 💡 [요청 문구 반영] 업종 입력 가이드 도움말
     user_industry_input = st.sidebar.text_input(
-        "업종 직접 입력",
-        value="일식 음식점업",
-        help="예: 카페, 일식, 미용실, 의류 등 키워드로 자유롭게 입력하세요.",
+        "업종 검색 및 입력",
+        value="한식 음식점",
+        help="상담 업체의 세부 업종 키워드를 입력하세요.(예: 한식 음식점, 카페, 디저트카페. 미용실, 의류 도매업 등)",
     )
 
     selected_age_display = st.sidebar.selectbox(
@@ -86,22 +93,22 @@ if df_failures is not None:
         "성별", sorted(df_failures["성별"].dropna().unique())
     )
 
-    # API Key 설정 (Secrets 우선, 없을 시 입력받음)
+    # API Key 설정 (Secrets 우선)
     if "GEMINI_API_KEY" in st.secrets:
         api_key = st.secrets["GEMINI_API_KEY"]
     else:
         api_key = st.sidebar.text_input("Gemini API Key", type="password")
 
-    generate_btn = st.sidebar.button("🚀 진단 리포트 생성하기", use_container_width=True)
+    generate_btn = st.sidebar.button("🚀 경영진단 리포트 생성하기", use_container_width=True)
 
     # ==========================================
-    # 4. 데이터 필터링 & Gemini API 호출 (유사 업종 매칭)
+    # 4. 데이터 필터링 & Gemini API 호출
     # ==========================================
     if generate_btn:
         if not api_key:
             st.warning("Gemini API Key가 설정되지 않았습니다. Secrets를 확인해 주세요.")
         elif not user_industry_input.strip():
-            st.warning("업종을 입력해 주세요.")
+            st.warning("업종 키워드를 입력해 주세요.")
         else:
             clean_industry = user_industry_input.strip()
 
@@ -116,16 +123,14 @@ if df_failures is not None:
                 & (df_failures["성별"] == selected_gender)
             ]
 
-            # 만약 정밀 조건 결과가 적으면, 유사 업종 전체 데이터로 유연하게 확장
             is_fallback = False
             if filtered_failures.empty:
                 filtered_failures = df_failures[industry_mask]
                 is_fallback = True
 
-            # 매칭된 업종이 아예 없는 경우 전체 평균 경향성 참조
             if filtered_failures.empty:
                 filtered_failures = df_failures.head(30)
-                matched_industries_str = f"입력된 키워드('{clean_industry}') 관련 전체 업종 종합 데이터"
+                matched_industries_str = f"'{clean_industry}' 관련 업종 종합 데이터"
             else:
                 matched_industries = filtered_failures["업종"].unique()[:5]
                 matched_industries_str = ", ".join(matched_industries)
@@ -143,10 +148,10 @@ if df_failures is not None:
                     f"- [{row['항목']}] {row['분야']} > {row['세부 분야']}\n"
                 )
 
-            # 프롬프트 구성 (유사 업종 반영)
+            # 프롬프트 구성
             prompt = f"""
             당신은 소상공인 지원사업의 경영컨설팅 및 데이터 분석 전문가입니다.
-            46,000여 건의 실제 소상공인 폐업 조사 데이터베이스에서 추출된 아래 자료를 바탕으로, 상담 고객을 위한 객관적이고 논리적인 [경영 진단 및 맞춤 컨설팅 추천 리포트]를 작성하세요.
+            축적된 실제 소상공인 폐업 조사 데이터베이스({data_count_str})에서 추출된 아래 자료를 바탕으로, 상담 고객을 위한 객관적이고 논리적인 [경영 진단 및 맞춤 컨설팅 추천 리포트]를 작성하세요.
 
             [상담 고객 프로필]
             - 자치구: {selected_district} | 입력된 업종: {clean_industry} (매칭된 유사 업종: {matched_industries_str}) | 연령대: {selected_age_display} | 성별: {selected_gender}
@@ -165,7 +170,7 @@ if df_failures is not None:
             4. **격식 및 톤앤매너**: 소상공인 사장님에게 전달되는 전문 기관의 공식 리포트 어조(~하오니, ~를 권장합니다)로 단정하게 작성하세요. 개인정보는 일절 언급하지 마세요.
             """
 
-            with st.spinner(f"'{clean_industry}' 관련 데이터베이스를 검색하여 맞춤 리포트를 생성 중입니다..."):
+            with st.spinner(f"'{clean_industry}' 관련 빅데이터를 분석하여 맞춤 진단서를 생성 중입니다..."):
                 try:
                     client = genai.Client(api_key=api_key)
                     response = client.models.generate_content(
