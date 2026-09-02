@@ -8,43 +8,47 @@ from google import genai
 from xhtml2pdf import pisa
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfbase.pdfmetrics import registerFontFamily
 
 # ==========================================
-# 0. Noto Sans KR (Bold / Light) PDF 폰트 로드 및 안전 등록
+# 0. Noto Sans KR (Bold / Light) 이중 패밀리 안전 등록
 # ==========================================
 @st.cache_resource
 def register_noto_fonts():
-    bold_registered = False
-    light_registered = False
-
-    # 1. NotoSansKR-Bold (제목용)
     bold_path = "NotoSansKR-Bold.ttf"
-    if os.path.exists(bold_path):
-        try:
-            pdfmetrics.registerFont(TTFont('NotoBold', bold_path))
-            bold_registered = True
-        except Exception:
-            pass
-
-    # 2. NotoSansKR-Light (본문용)
     light_path = "NotoSansKR-Light.ttf"
-    if os.path.exists(light_path):
+
+    bold_ok = os.path.exists(bold_path)
+    light_ok = os.path.exists(light_path)
+
+    if bold_ok and light_ok:
         try:
-            pdfmetrics.registerFont(TTFont('NotoLight', light_path))
-            light_registered = True
+            # 1. 개별 폰트 파일 등록
+            pdfmetrics.registerFont(TTFont('NotoSansKR-Bold', bold_path))
+            pdfmetrics.registerFont(TTFont('NotoSansKR-Light', light_path))
+
+            # 2. 하나의 Font Family로 매핑 (xhtml2pdf 폰트 상실 방지)
+            registerFontFamily(
+                'NotoSansKR',
+                normal='NotoSansKR-Light',
+                bold='NotoSansKR-Bold',
+                italic='NotoSansKR-Light',
+                boldItalic='NotoSansKR-Bold'
+            )
+            return True
         except Exception:
             pass
 
-    # 만약 파일 탐색 실패 시 백업용 나눔고딕 웹 폰트 로드
-    if not (bold_registered and light_registered):
-        try:
-            font_url = "https://cdn.jsdelivr.net/gh/googlefonts/nanum-gothic@main/fonts/ttf/NanumGothic-Regular.ttf"
-            req = urllib.request.Request(font_url, headers={'User-Agent': 'Mozilla/5.0'})
-            font_data = urllib.request.urlopen(req).read()
-            font_bytes = io.BytesIO(font_data)
-            pdfmetrics.registerFont(TTFont('NanumGothic', font_bytes))
-        except Exception:
-            pass
+    # 백업: 나눔고딕 웹 폰트 로드
+    try:
+        font_url = "https://cdn.jsdelivr.net/gh/googlefonts/nanum-gothic@main/fonts/ttf/NanumGothic-Regular.ttf"
+        req = urllib.request.Request(font_url, headers={'User-Agent': 'Mozilla/5.0'})
+        font_data = urllib.request.urlopen(req).read()
+        font_bytes = io.BytesIO(font_data)
+        pdfmetrics.registerFont(TTFont('NanumGothic', font_bytes))
+        registerFontFamily('NanumGothic', normal='NanumGothic', bold='NanumGothic')
+    except Exception:
+        pass
 
 register_noto_fonts()
 
@@ -83,7 +87,7 @@ else:
 
 
 # ==========================================
-# 2. 페이지 기본 설정 및 원래 UI 제목 완벽 유지
+# 2. 페이지 기본 설정 및 원래 UI 제목 복원
 # ==========================================
 st.set_page_config(
     page_title="폐업자 실패요인 데이터 기반 맞춤형 경영진단 리포트",
@@ -105,7 +109,7 @@ def convert_html_to_pdf(html_string):
 
 
 # ==========================================
-# 3. 사용자 입력 폼 (원래 UI 라벨 완벽 유지)
+# 3. 사용자 입력 폼 (원래 UI 라벨 유지)
 # ==========================================
 if df_failures is not None:
     st.sidebar.header("📋 상담업체 프로필 선택")
@@ -139,7 +143,7 @@ if df_failures is not None:
     generate_btn = st.sidebar.button("🚀 경영진단 리포트 생성하기", use_container_width=True)
 
     # ==========================================
-    # 4. 데이터 필터링 & API 호출 (503 오류 재시도 예외처리 포함)
+    # 4. 데이터 필터링 & API 호출
     # ==========================================
     if generate_btn:
         if not api_key:
@@ -206,7 +210,6 @@ if df_failures is not None:
                 try:
                     client = genai.Client(api_key=api_key.strip())
                     
-                    # 구글 503 순간 과부하 발생 시 최대 3회 재시도 처리
                     response = None
                     for attempt in range(3):
                         try:
@@ -233,7 +236,7 @@ if df_failures is not None:
                     )
                     st.write(report_text)
 
-                    # 💡 NotoSansKR-Bold (제목) & NotoSansKR-Light (본문) 폰트 할당 HTML
+                    # NotoSansKR 패밀리 내에서 제목(Bold) 및 본문(Light) 지정 HTML
                     html_content = f"""
                     <!DOCTYPE html>
                     <html>
@@ -245,14 +248,14 @@ if df_failures is not None:
                                 margin: 2cm;
                             }}
                             body {{
-                                font-family: 'NotoLight', 'NanumGothic', sans-serif;
+                                font-family: 'NotoSansKR', 'NanumGothic', sans-serif;
                                 font-weight: normal;
                                 line-height: 1.6;
                                 color: #333333;
                             }}
                             h1 {{
-                                font-family: 'NotoBold', 'NanumGothic', sans-serif;
-                                font-weight: normal;
+                                font-family: 'NotoSansKR', 'NanumGothic', sans-serif;
+                                font-weight: bold;
                                 color: #1E3A8A;
                                 font-size: 16pt;
                                 border-bottom: 2px solid #1E3A8A;
@@ -260,7 +263,7 @@ if df_failures is not None:
                                 margin-bottom: 15px;
                             }}
                             .info-box {{
-                                font-family: 'NotoLight', 'NanumGothic', sans-serif;
+                                font-family: 'NotoSansKR', 'NanumGothic', sans-serif;
                                 font-weight: normal;
                                 background-color: #F3F4F6;
                                 border: 1px solid #E5E7EB;
@@ -269,7 +272,7 @@ if df_failures is not None:
                                 margin-bottom: 15px;
                             }}
                             .content {{
-                                font-family: 'NotoLight', 'NanumGothic', sans-serif;
+                                font-family: 'NotoSansKR', 'NanumGothic', sans-serif;
                                 font-weight: normal;
                                 font-size: 10pt;
                                 white-space: pre-wrap;
