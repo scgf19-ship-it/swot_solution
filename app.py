@@ -1,5 +1,6 @@
 import io
 import os
+import urllib.request
 import pandas as pd
 import streamlit as st
 from google import genai
@@ -8,26 +9,43 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
 # ==========================================
-# 0. PDF용 Pretendard (Bold / Light) 폰트 등록
+# 0. Pretendard (Bold / Light) PDF 폰트 로드 및 안전 등록
 # ==========================================
-def register_pdf_fonts():
-    # 1. 제목용 (Pretendard-Bold)
-    bold_font_path = "Pretendard-Bold.ttf"
-    if os.path.exists(bold_font_path):
+@st.cache_resource
+def register_pretendard_fonts():
+    bold_registered = False
+    light_registered = False
+
+    # 1. Pretendard-Bold (제목용)
+    bold_path = "Pretendard-Bold.ttf"
+    if os.path.exists(bold_path):
         try:
-            pdfmetrics.registerFont(TTFont('PretendardBold', bold_font_path))
+            pdfmetrics.registerFont(TTFont('PretendardBold', bold_path))
+            bold_registered = True
         except Exception:
             pass
 
-    # 2. 본문용 (Pretendard-Light)
-    light_font_path = "Pretendard-Light.ttf"
-    if os.path.exists(light_font_path):
+    # 2. Pretendard-Light (본문용)
+    light_path = "Pretendard-Light.ttf"
+    if os.path.exists(light_path):
         try:
-            pdfmetrics.registerFont(TTFont('PretendardLight', light_font_path))
+            pdfmetrics.registerFont(TTFont('PretendardLight', light_path))
+            light_registered = True
         except Exception:
             pass
 
-register_pdf_fonts()
+    # 만약 로컬 TTF 파일 등록 실패 시 백업용 나눔고딕 웹 폰트 로드
+    if not (bold_registered and light_registered):
+        try:
+            font_url = "https://cdn.jsdelivr.net/gh/googlefonts/nanum-gothic@main/fonts/ttf/NanumGothic-Regular.ttf"
+            req = urllib.request.Request(font_url, headers={'User-Agent': 'Mozilla/5.0'})
+            font_data = urllib.request.urlopen(req).read()
+            font_bytes = io.BytesIO(font_data)
+            pdfmetrics.registerFont(TTFont('NanumGothic', font_bytes))
+        except Exception:
+            pass
+
+register_pretendard_fonts()
 
 
 # ==========================================
@@ -64,7 +82,7 @@ else:
 
 
 # ==========================================
-# 2. 페이지 기본 설정 및 원래 제목 복원
+# 2. 페이지 기본 설정 및 원래 UI 제목 복원
 # ==========================================
 st.set_page_config(
     page_title="폐업자 실패요인 데이터 기반 맞춤형 경영진단 리포트",
@@ -86,7 +104,7 @@ def convert_html_to_pdf(html_string):
 
 
 # ==========================================
-# 3. 사용자 입력 폼
+# 3. 사용자 입력 폼 (원래 UI 라벨 원복)
 # ==========================================
 if df_failures is not None:
     st.sidebar.header("📋 상담업체 프로필 선택")
@@ -180,7 +198,7 @@ if df_failures is not None:
             1. **동종/유사 업종 폐업 원인 종합 진단**: 제공된 SWOT 실패 요인을 분석하여, '{clean_industry}' 관련 업종의 소상공인들이 주로 겪는 경영 위기 패턴(약점 및 위협요인)을 데이터에 기반하여 설명하세요.
             2. **예상 보완점 및 경영 인사이트**: 단순 자금(보증) 지원만으로는 해결되지 않는 핵심 경영 위험 요인을 지적하고, 우선적으로 개선해야 할 전략적 보완점을 제시하세요.
             3. **★ 맞춤형 컨설팅 지원사업 추천 (가장 중요)**: [자사 제공 컨설팅 지원사업 목록] 중에서 이 업체의 약점과 위협을 극복하는 데 가장 직결되는 컨설팅 분야/세부터겟 2~3개를 명확히 지목하고, 왜 이 컨설팅이 필요한지 논리적 사유를 함께 작성하세요.
-            4. **격식 및 톤앤매너**: 소상공인 사장님에게 전달되는 전문 기관의 공식 리포트 어조(~하오니, ~를 권장합니다)로 단정하게 작성하세요. 마크다운 기호(###, **)는 제거하고 깔끔한 텍스트 단락으로 출력하세요. 개인정보는 일절 언급하지 마세요.
+            4. **격식 및 톤앤매너**: 소상공인 사장님에게 전달되는 전문 기관의 공식 리포트 어조(~하오니, ~를 권장합니다)로 단정하게 작성하세요. 개인정보는 일절 언급하지 마세요.
             """
 
             with st.spinner(f"'{clean_industry}' 관련 빅데이터를 분석하여 맞춤 진단서를 생성 중입니다..."):
@@ -202,7 +220,8 @@ if df_failures is not None:
                     )
                     st.write(report_text)
 
-                    # 💡 Pretendard-Bold (제목) & Pretendard-Light (본문 전체) 적용 HTML/CSS
+                    # 💡 Pretendard-Bold (제목) & Pretendard-Light (본문) 폰트 할당 HTML
+                    # xhtml2pdf의 폰트 서칭 에러를 막기 위해 font-weight: normal로 제어
                     html_content = f"""
                     <!DOCTYPE html>
                     <html>
@@ -213,15 +232,15 @@ if df_failures is not None:
                                 size: a4 portrait;
                                 margin: 2cm;
                             }}
-                            /* 본문 전체: PretendardLight */
                             body {{
-                                font-family: 'PretendardLight', sans-serif;
+                                font-family: 'PretendardLight', 'NanumGothic', sans-serif;
+                                font-weight: normal;
                                 line-height: 1.6;
                                 color: #333333;
                             }}
-                            /* 제목 H1: PretendardBold */
                             h1 {{
-                                font-family: 'PretendardBold', sans-serif;
+                                font-family: 'PretendardBold', 'NanumGothic', sans-serif;
+                                font-weight: normal;
                                 color: #1E3A8A;
                                 font-size: 16pt;
                                 border-bottom: 2px solid #1E3A8A;
@@ -229,7 +248,8 @@ if df_failures is not None:
                                 margin-bottom: 15px;
                             }}
                             .info-box {{
-                                font-family: 'PretendardLight', sans-serif;
+                                font-family: 'PretendardLight', 'NanumGothic', sans-serif;
+                                font-weight: normal;
                                 background-color: #F3F4F6;
                                 border: 1px solid #E5E7EB;
                                 padding: 10px;
@@ -237,7 +257,8 @@ if df_failures is not None:
                                 margin-bottom: 15px;
                             }}
                             .content {{
-                                font-family: 'PretendardLight', sans-serif;
+                                font-family: 'PretendardLight', 'NanumGothic', sans-serif;
+                                font-weight: normal;
                                 font-size: 10pt;
                                 white-space: pre-wrap;
                                 word-wrap: break-word;
