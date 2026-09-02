@@ -1,57 +1,10 @@
 import io
 import os
 import time
-import urllib.request
 import pandas as pd
 import streamlit as st
 from google import genai
 from xhtml2pdf import pisa
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.pdfbase.pdfmetrics import registerFontFamily
-
-# ==========================================
-# 0. Noto Sans KR (Bold / Light) 이중 패밀리 안전 등록
-# ==========================================
-@st.cache_resource
-def register_noto_fonts():
-    bold_path = "NotoSansKR-Bold.ttf"
-    light_path = "NotoSansKR-Light.ttf"
-
-    bold_ok = os.path.exists(bold_path)
-    light_ok = os.path.exists(light_path)
-
-    if bold_ok and light_ok:
-        try:
-            # 1. 개별 폰트 파일 등록
-            pdfmetrics.registerFont(TTFont('NotoSansKR-Bold', bold_path))
-            pdfmetrics.registerFont(TTFont('NotoSansKR-Light', light_path))
-
-            # 2. 하나의 Font Family로 매핑 (xhtml2pdf 폰트 상실 방지)
-            registerFontFamily(
-                'NotoSansKR',
-                normal='NotoSansKR-Light',
-                bold='NotoSansKR-Bold',
-                italic='NotoSansKR-Light',
-                boldItalic='NotoSansKR-Bold'
-            )
-            return True
-        except Exception:
-            pass
-
-    # 백업: 나눔고딕 웹 폰트 로드
-    try:
-        font_url = "https://cdn.jsdelivr.net/gh/googlefonts/nanum-gothic@main/fonts/ttf/NanumGothic-Regular.ttf"
-        req = urllib.request.Request(font_url, headers={'User-Agent': 'Mozilla/5.0'})
-        font_data = urllib.request.urlopen(req).read()
-        font_bytes = io.BytesIO(font_data)
-        pdfmetrics.registerFont(TTFont('NanumGothic', font_bytes))
-        registerFontFamily('NanumGothic', normal='NanumGothic', bold='NanumGothic')
-    except Exception:
-        pass
-
-register_noto_fonts()
-
 
 # ==========================================
 # 1. 엑셀 파일 로드 및 데이터 전처리
@@ -236,26 +189,33 @@ if df_failures is not None:
                     )
                     st.write(report_text)
 
-                    # NotoSansKR 패밀리 내에서 제목(Bold) 및 본문(Light) 지정 HTML
+                    # @font-face 경로 직접 지정 HTML
                     html_content = f"""
                     <!DOCTYPE html>
                     <html>
                     <head>
                         <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
                         <style>
+                            @font-face {{
+                                font-family: 'NotoBold';
+                                src: url('NotoSansKR-Bold.ttf');
+                            }}
+                            @font-face {{
+                                font-family: 'NotoLight';
+                                src: url('NotoSansKR-Light.ttf');
+                            }}
+
                             @page {{
                                 size: a4 portrait;
                                 margin: 2cm;
                             }}
                             body {{
-                                font-family: 'NotoSansKR', 'NanumGothic', sans-serif;
-                                font-weight: normal;
+                                font-family: 'NotoLight', sans-serif;
                                 line-height: 1.6;
                                 color: #333333;
                             }}
                             h1 {{
-                                font-family: 'NotoSansKR', 'NanumGothic', sans-serif;
-                                font-weight: bold;
+                                font-family: 'NotoBold', sans-serif;
                                 color: #1E3A8A;
                                 font-size: 16pt;
                                 border-bottom: 2px solid #1E3A8A;
@@ -263,8 +223,7 @@ if df_failures is not None:
                                 margin-bottom: 15px;
                             }}
                             .info-box {{
-                                font-family: 'NotoSansKR', 'NanumGothic', sans-serif;
-                                font-weight: normal;
+                                font-family: 'NotoLight', sans-serif;
                                 background-color: #F3F4F6;
                                 border: 1px solid #E5E7EB;
                                 padding: 10px;
@@ -272,8 +231,7 @@ if df_failures is not None:
                                 margin-bottom: 15px;
                             }}
                             .content {{
-                                font-family: 'NotoSansKR', 'NanumGothic', sans-serif;
-                                font-weight: normal;
+                                font-family: 'NotoLight', sans-serif;
                                 font-size: 10pt;
                                 white-space: pre-wrap;
                                 word-wrap: break-word;
